@@ -23,7 +23,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Initialize DB on app start
 init_db()
 
 # --- DATABASE FUNCTIONS ---
@@ -102,6 +101,7 @@ def generate_password(length, use_digits, use_symbols):
         if use_symbols and not any(c in string.punctuation for c in password): continue
         return password
 
+# --- SESSION STATE ---
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 if 'current_user' not in st.session_state: st.session_state['current_user'] = None
 
@@ -124,4 +124,92 @@ def login_page():
     with tab2:
         nu = st.text_input("New Username", key="signup_user")
         np = st.text_input("New Password", type="password", key="signup_pass")
+        
+        # THIS IS WHERE YOUR ERROR WAS
         if st.button("Create Account"):
+            if len(np) < 4: 
+                st.warning("Password too short")
+            elif add_user(nu, hash_password(np)): 
+                st.success("Created! Please Login.")
+            else: 
+                st.error("User exists.")
+
+# --- UI: MAIN APP ---
+def main_app():
+    # SIDEBAR
+    st.sidebar.title(f"👤 {st.session_state['current_user']}")
+    
+    if st.sidebar.button("Logout"):
+        st.session_state['logged_in'] = False
+        st.rerun()
+        
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Admin Tools")
+    try:
+        with open("my_database.db", "rb") as fp:
+            st.sidebar.download_button(
+                label="📥 Download Database",
+                data=fp,
+                file_name="my_database.db",
+                mime="application/octet-stream"
+            )
+    except FileNotFoundError:
+        st.sidebar.warning("DB not created yet.")
+
+    st.title("🔐 Database Password Manager")
+    
+    # 1. GENERATOR
+    st.markdown("### 1. Generator")
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        length = st.slider("Length", 8, 32, 12)
+        site = st.text_input("Website (e.g. Gmail)")
+    with c2:
+        dig = st.checkbox("0-9", True)
+        sym = st.checkbox("!@#", True)
+
+    if st.button("Generate & Analyze", type="primary"):
+        pwd = generate_password(length, dig, sym)
+        st.session_state['temp_pwd'] = pwd 
+
+    if 'temp_pwd' in st.session_state:
+        pwd = st.session_state['temp_pwd']
+        crack_time, color = calculate_crack_time(pwd)
+        
+        st.info(f"Generated: `{pwd}`")
+        st.markdown(f"**Time to Crack:** :{color}[{crack_time}]")
+        
+        if st.button("💾 Save to Database"):
+            if site:
+                save_pass_to_db(st.session_state['current_user'], site, pwd)
+                st.success(f"Saved for {site}!")
+                del st.session_state['temp_pwd'] 
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.warning("Please enter a Website Name first.")
+
+    # 2. DATABASE
+    st.markdown("---")
+    st.markdown("### 2. My Vault (Database)")
+    
+    history = get_user_history(st.session_state['current_user'])
+    
+    if not history:
+        st.caption("No passwords saved yet.")
+    else:
+        for item in history:
+            pid, s_name, s_pass, s_time = item
+            with st.expander(f"🔐 {s_name} (Saved: {s_time})"):
+                c_a, c_b = st.columns([3, 1])
+                c_a.code(s_pass, language='')
+                if c_b.button("🗑️ Delete", key=f"del_{pid}"):
+                    delete_password(pid)
+                    st.toast(f"Deleted {s_name}")
+                    time.sleep(1)
+                    st.rerun()
+
+if st.session_state['logged_in']:
+    main_app()
+else:
+    login_page()
