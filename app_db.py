@@ -133,34 +133,31 @@ def login_page():
 
 # --- UI: MAIN APP ---
 def main_app():
+    # --- SIDEBAR ---
     st.sidebar.title(f"👤 {st.session_state['current_user']}")
+    
+    # ... your existing Logout button is here ...
     if st.sidebar.button("Logout"):
         st.session_state['logged_in'] = False
-        st.session_state['current_user'] = None
         st.rerun()
     
-    st.title("🔐 Generator with Database")
-    st.markdown("---")
+    st.sidebar.markdown("---")
     
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        length = st.slider("Password Length", 8, 32, 12)
-        site_name = st.text_input("Website Name (e.g. Facebook)", placeholder="Enter site name to save")
-    with col2:
-        use_digits = st.checkbox("Include Numbers", True)
-        use_symbols = st.checkbox("Include Symbols", True)
-
-    if st.button("Generate & Save", type="primary"):
-        password = generate_password(length, use_digits, use_symbols)
-        st.subheader("Generated Password:")
-        st.code(password, language='')
-        
-        if site_name:
-            save_pass_to_db(st.session_state['current_user'], site_name, password)
-            st.success(f"Saved password for {site_name} to Database!")
-        else:
-            st.warning("Password generated but NOT saved. Enter a 'Website Name' to save.")
-
+    # ⬇️ ADD THIS NEW CODE HERE ⬇️
+    st.sidebar.subheader("Admin Tools")
+    
+    # Read the database file as bytes
+    try:
+        with open("my_database.db", "rb") as fp:
+            btn = st.sidebar.download_button(
+                label="📥 Download Database File",
+                data=fp,
+                file_name="my_database.db",
+                mime="application/octet-stream",
+                help="Download the actual SQL file to your computer."
+            )
+    except FileNotFoundError:
+        st.sidebar.warning("Database not created yet.")
     # Show Database History
     st.markdown("---")
     st.subheader("📂 Your Saved Passwords (From Database)")
